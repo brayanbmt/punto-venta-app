@@ -274,7 +274,7 @@ class _DailySummaryViewState extends State<DailySummaryView> {
                                   : null,
                             ),
                           Text(
-                            '${ticket.items.length} artículos',
+                            '${ticket.totalItems} artículos',
                             style: isCreditNote
                                 ? TextStyle(color: Colors.grey.shade900)
                                 : null,

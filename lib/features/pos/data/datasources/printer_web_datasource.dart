@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:punto_venta_app/core/utils/extensions.dart';
+import 'package:punto_venta_app/features/pos/domain/entities/cart_log_entry.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/print_job.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/printer_config.dart';
 
@@ -157,25 +158,41 @@ class PrinterWebDatasourceImpl implements PrinterWebDatasource {
     commands.add(LF);
 
     // === ITEMS ===
-    commands.addAll([ESC, 0x61, 0x00]); 
-    for (var item in printJob.items) {
-      // Nombre del producto
+    commands.addAll([ESC, 0x61, 0x00]);
+    final entries = printJob.logItems.isNotEmpty
+        ? printJob.logItems
+        : printJob.items
+            .map((item) => CartLogEntry(
+                  id: '',
+                  type: CartActionType.add,
+                  item: item,
+                  timestamp: printJob.timestamp,
+                ))
+            .toList();
+    for (final entry in entries) {
+      final item = entry.item;
+      final isAdd = entry.type == CartActionType.add;
+      // se deja en blanco para no mostrar el signo + de la cantidad
+      final sign = isAdd ? '' : '-';
+
       commands.addAll(utf8.encode(item.product.description));
       commands.add(LF);
-      
-      // Formatear precios
-      final precioUnit = item.product.price?.formatToCurrency();
-      final subtotalValue = (item.quantity * (item.product.price ?? 0.0)).formatToCurrency();
-      final subtotal = subtotalValue;
-      
-      // Cantidad x Precio
-      final line = '  ${item.quantity} x $precioUnit';
-      
-      // Calcular espacios dinámicamente
-      final totalSpaces = _lineWidth - line.length - subtotal.length;
+
+      final isWeighted = item.isWeighted == true;
+      final unitPrice = item.product.price ?? 0.0;
+      final lineTotal = isWeighted
+          ? unitPrice * (item.weightKg ?? 0.0)
+          : unitPrice * item.quantity;
+      final qtyLabel = isWeighted
+          ? '$sign${(item.weightKg ?? 0.0).toStringAsFixed(3)} kg'
+          : '$sign${item.quantity}';
+      final line = '  $qtyLabel x ${unitPrice.formatToCurrency()}';
+      final totalLabel = '$sign ${lineTotal.formatToCurrency()}';
+
+      final totalSpaces = _lineWidth - line.length - totalLabel.length;
       final spacer = totalSpaces > 0 ? ' ' * totalSpaces : ' ';
-      
-      commands.addAll(utf8.encode('$line$spacer$subtotal'));
+
+      commands.addAll(utf8.encode('$line$spacer$totalLabel'));
       commands.add(LF);
       commands.add(LF);
     }

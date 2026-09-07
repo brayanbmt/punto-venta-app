@@ -11,6 +11,7 @@ import 'package:punto_venta_app/features/pos/domain/entities/fiscal_issuer_data.
 import 'package:punto_venta_app/features/pos/domain/repositories/fiscal_issuer_data_repository.dart';
 import 'package:punto_venta_app/features/pos/domain/repositories/payment_method_repository.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/cart_item.dart';
+import 'package:punto_venta_app/features/pos/domain/entities/cart_log_entry.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/completed_order.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/print_job.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/printer/printer_bloc.dart';
@@ -704,65 +705,7 @@ class _TicketPreviewContentState extends State<_TicketPreviewContent> {
             ),
 
             // Items
-            ...(_recalculatedTicket ?? widget.ticket).items.map((item) {
-              final isWeighted = item.isWeighted == true;
-              final basePrice = item.product.price ?? 0.0;
-              final displayPrice = _getDisplayUnitPrice(
-                item,
-                basePrice,
-                showPricesWithTax: _printJob!.showPricesWithTax,
-              );
-              final weightKg = item.weightKg ?? 0.0;
-              
-              // si es producto pesado, se multiplica el peso por el precio unitario
-              // si no es producto pesado, se multiplica la cantidad por el precio unitario
-              final lineTotal = isWeighted
-                  ? weightKg * displayPrice
-                  : item.quantity * displayPrice;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.product.description,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    if (item.isWeighted == true)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '  ${weightKg.toStringAsFixed(3)} kg x ${displayPrice.formatToCurrency()}',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey[600]),
-                          ),
-                          Text(
-                            lineTotal.formatToCurrency(),
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    if (item.isWeighted != true)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '  ${item.quantity} x ${displayPrice.formatToCurrency()}',
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey[600]),
-                          ),
-                          Text(
-                            (item.quantity * displayPrice).formatToCurrency(),
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              );
-            }).toList(),
+            ..._buildPreviewLogLines(context),
 
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
@@ -941,21 +884,68 @@ class _TicketPreviewContentState extends State<_TicketPreviewContent> {
     );
   }
 
-  double _calculatePriceWithTax(double price, double? taxPercentage) {
-    final tax = (taxPercentage ?? 0.0) / 100;
-    return price * (1 + tax);
-  }
+  List<Widget> _buildPreviewLogLines(BuildContext context) {
+    final ticket = _recalculatedTicket ?? widget.ticket;
+    final entries = ticket.logs.isNotEmpty
+        ? ticket.logs
+        : ticket.items
+            .map((item) => CartLogEntry(
+                  id: '',
+                  type: CartActionType.add,
+                  item: item,
+                  timestamp: ticket.completedAt,
+                ))
+            .toList();
 
-  double _getDisplayUnitPrice(CartItem item, double basePrice,
-      {required bool showPricesWithTax}) {
-    if (showPricesWithTax) {
-      return basePrice;
-    }
-    double priceWithTax = _calculatePriceWithTax(basePrice, item.product.vat);
-    if (item.product.internalTax > 0) {
-      final fractional = item.product.fractional ?? 1;
-      priceWithTax += item.product.internalTax * fractional;
-    }
-    return priceWithTax;
+    return entries.map((entry) {
+      final item = entry.item;
+      final isAdd = entry.type == CartActionType.add;
+      // se deja en blanco para no mostrar el signo + de la cantidad
+      final sign = isAdd ? '' : '-';
+      final color = isAdd ? AppColors.success : AppColors.error;
+      final isWeighted = item.isWeighted == true;
+      final product = item.product;
+      final basePrice = product.price ?? 0.0;
+      final vatRate = product.vat / 100.0;
+      double displayPrice = basePrice * (1 + vatRate);
+      if (product.internalTax > 0) {
+        displayPrice += product.internalTax * (product.fractional ?? 1);
+      }
+      final lineTotal = isWeighted
+          ? displayPrice * (item.weightKg ?? 0.0)
+          : displayPrice * item.quantity;
+      final qtyLabel = isWeighted
+          ? '$sign${(item.weightKg ?? 0.0).toStringAsFixed(3)} kg'
+          : '$sign${item.quantity}';
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.product.description,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '  $qtyLabel x ${displayPrice.formatToCurrency()}',
+                  style: TextStyle(fontSize: 12, color: color),
+                ),
+                Text(
+                  '$sign ${lineTotal.formatToCurrency()}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }).toList();
   }
 }

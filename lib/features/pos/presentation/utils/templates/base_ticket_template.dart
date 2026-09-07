@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:punto_venta_app/core/constants/ticket_template_types.dart';
 import 'package:punto_venta_app/core/utils/extensions.dart';
 import 'package:punto_venta_app/core/utils/utils.dart' as utils;
+import 'package:punto_venta_app/features/pos/domain/entities/cart_log_entry.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/print_job.dart';
 import 'package:punto_venta_app/features/pos/presentation/utils/qrcode_image_builder.dart';
 
@@ -225,64 +226,65 @@ abstract class BaseTicketTemplate {
     return commands;
   }
 
-  /// Construye la sección de ítems con control sobre mostrar precios con o sin IVA
+  /// Construye la sección de ítems a partir del log de altas/bajas.
   List<TicketCommand> buildItemsDetailed({required bool showPricesWithTax}) {
-    final commands = <TicketCommand>[];
+    final commands = <TicketCommand>[
+      TicketCommand.alignment(TicketAlignment.left),
+    ];
+    final entries = _printableLogEntries();
 
-    for (var item in printJob.items) {
+    for (final entry in entries) {
+      final item = entry.item;
+      final isAdd = entry.type == CartActionType.add;
+      // se deja en blanco para no mostrar el signo + de la cantidad
+      final sign = isAdd ? '' : '-';
+
       final productName = item.product.name.length > lineWidth - 2
-          ? item.product.name.substring(0, lineWidth - 5) + "..."
+          ? '${item.product.name.substring(0, lineWidth - 5)}...'
           : item.product.name;
 
       commands.add(TicketCommand.text(productName));
       commands.add(TicketCommand.feedLine());
 
       final basePrice = item.product.price ?? 0;
+      final displayPrice = getDisplayUnitPrice(item, basePrice,
+          showPricesWithTax: showPricesWithTax);
+      final isWeighted = item.isWeighted == true;
+      final lineTotal = isWeighted
+          ? displayPrice * (item.weightKg ?? 0.0)
+          : displayPrice * item.quantity;
+      final totalLabel = '$sign ${lineTotal.formatToCurrency()}';
 
-      if (item.isWeighted == true) {
-        // es producto pesado
-        final weightKg = item.weightKg ?? 0.0;
+      final qtyLabel = isWeighted
+          ? '$sign${(item.weightKg ?? 0.0).toStringAsFixed(3)} kg'
+          : '$sign${item.quantity}';
+      final line = '  $qtyLabel x ${displayPrice.formatToCurrency()}';
 
-        final unitPrice = getDisplayUnitPrice(item, basePrice,
-            showPricesWithTax: showPricesWithTax);
-        
-        // se multiplica el peso por el precio unitario
-        final subtotalValue = (weightKg * unitPrice).formatToCurrency();
+      final totalSpaces = lineWidth - line.length - totalLabel.length;
+      final spacer = totalSpaces > 0 ? ' ' * totalSpaces : ' ';
 
-        // se muestra el peso y el precio unitario
-        final line =
-            "  ${weightKg.toStringAsFixed(3)} kg x ${unitPrice.formatToCurrency()}";
-
-        final totalSpaces = lineWidth - line.length - subtotalValue.length;
-        final spacer = totalSpaces > 0 ? ' ' * totalSpaces : ' ';
-
-        // se muestra el peso y el precio unitario
-        commands.add(TicketCommand.text("$line$spacer$subtotalValue"));
-        commands.add(TicketCommand.feedLine());
-      } else {
-        // no es peso
-
-        //precio a mostrar
-        final displayPrice = getDisplayUnitPrice(item, basePrice,
-            showPricesWithTax: showPricesWithTax);
-
-        final unitPrice = displayPrice.formatToCurrency();
-        final subtotalValue = (item.quantity * displayPrice).formatToCurrency();
-
-        final line = "  ${item.quantity} x $unitPrice";
-
-        final totalSpaces = lineWidth - line.length - subtotalValue.length;
-        final spacer = totalSpaces > 0 ? ' ' * totalSpaces : ' ';
-
-        commands.add(TicketCommand.text("$line$spacer$subtotalValue"));
-        commands.add(TicketCommand.feedLine());
-      }
+      commands.add(TicketCommand.text('$line$spacer$totalLabel'));
+      commands.add(TicketCommand.feedLine());
     }
 
     commands.add(TicketCommand.text(buildSeparator('-')));
     commands.add(TicketCommand.feedLine());
 
     return commands;
+  }
+
+  List<CartLogEntry> _printableLogEntries() {
+    if (printJob.logItems.isNotEmpty) {
+      return printJob.logItems;
+    }
+    return printJob.items
+        .map((item) => CartLogEntry(
+              id: '',
+              type: CartActionType.add,
+              item: item,
+              timestamp: printJob.timestamp,
+            ))
+        .toList();
   }
 
   /// Construye totales con desglose completo de impuestos

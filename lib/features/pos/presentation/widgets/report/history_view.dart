@@ -290,7 +290,7 @@ class _HistoryViewState extends State<HistoryView> {
                               : null,
                         ),
                       Text(
-                        '${ticket.items.length} artículos',
+                        '${ticket.totalItems} artículos',
                         style: isCreditNote
                             ? TextStyle(color: Colors.grey.shade900)
                             : null,

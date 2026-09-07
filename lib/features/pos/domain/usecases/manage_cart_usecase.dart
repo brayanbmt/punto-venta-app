@@ -1,4 +1,5 @@
 import '../entities/cart_item.dart';
+import '../entities/cart_log_entry.dart';
 import '../entities/product.dart';
 
 class ManageCartUsecase {
@@ -106,5 +107,33 @@ class ManageCartUsecase {
 
   int getTotalItems(List<CartItem> cart) {
     return cart.fold(0, (total, item) => total + item.quantity);
+  }
+
+  /// Reconstruye el carrito neto aplicando altas y bajas en orden.
+  List<CartItem> rebuildFromLog(List<CartLogEntry> log) {
+    List<CartItem> cart = [];
+    for (final entry in log) {
+      final isWeighted = entry.item.isWeighted ?? false;
+      if (entry.type == CartActionType.add) {
+        cart = addToCart(
+          cart,
+          entry.item.product,
+          entry.item.quantity,
+          isWeighted: isWeighted,
+          weightKg: entry.item.weightKg,
+          pricePerKg: entry.item.pricePerKg,
+        );
+      } else {
+        cart = removeQuantityFromCart(
+          cart,
+          entry.item.product.id.toString(),
+          entry.item.quantity,
+          isWeighted: isWeighted,
+          weightKg: entry.item.weightKg,
+          pricePerKg: entry.item.pricePerKg,
+        );
+      }
+    }
+    return cart;
   }
 }

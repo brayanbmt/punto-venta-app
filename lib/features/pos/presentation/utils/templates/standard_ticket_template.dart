@@ -17,7 +17,8 @@ class StandardTicketTemplate extends BaseTicketTemplate {
     commands.addAll(buildOrderInfo());
 
     // === ITEMS ===
-    commands.addAll(_buildItems());
+    commands.addAll(
+        buildItemsDetailed(showPricesWithTax: printJob.showPricesWithTax));
 
     // === TOTALES ===
     commands.addAll(_buildTotals());
@@ -30,60 +31,6 @@ class StandardTicketTemplate extends BaseTicketTemplate {
 
     // === PIE DE PÁGINA ===
     commands.addAll(buildFooter());
-
-    return commands;
-  }
-
-  /// Construye la lista de items (implementación original del template standard)
-  List<TicketCommand> _buildItems() {
-    final commands = <TicketCommand>[
-      TicketCommand.alignment(TicketAlignment.left),
-    ];
-
-    for (final item in printJob.items) {
-      commands.add(TicketCommand.text(item.product.description));
-      commands.add(TicketCommand.feedLine());
-
-      if (item.isWeighted == true) {
-        // es producto pesado
-        final weightKg = item.weightKg ?? 0.0;
-        final unitPriceNet = item.product.price ?? 0.0;
-        final displayPrice = getDisplayUnitPrice(item, unitPriceNet,
-            showPricesWithTax: printJob.showPricesWithTax);
-
-        // se multiplica el peso por el precio unitario
-        final subtotalValue = (weightKg * displayPrice).formatToCurrency();
-
-        // se muestra el peso y el precio unitario
-        final lineLeft =
-            "  ${weightKg.toStringAsFixed(3)} kg x ${displayPrice.formatToCurrency()}";
-        final totalSpacesLeft =
-            BaseTicketTemplate.lineWidth - lineLeft.length - subtotalValue.length;
-        final spacerLeft = totalSpacesLeft > 0 ? ' ' * totalSpacesLeft : ' ';
-
-        // se muestra el peso y el precio unitario
-        commands.add(TicketCommand.text("$lineLeft$spacerLeft$subtotalValue"));
-        commands.add(TicketCommand.feedLine());
-      } else {
-        final basePrice = (item.pricePerKg ?? item.product.price ?? 0.0);
-
-        // Calcular precio con o sin IVA según configuración
-        final displayPrice = getDisplayUnitPrice(item, basePrice, showPricesWithTax: printJob.showPricesWithTax);
-
-        final unitPrice = displayPrice.formatToCurrency();
-        final subtotalValue = (item.quantity * displayPrice).formatToCurrency();
-        final line = "  ${item.quantity} x $unitPrice";
-
-        final totalSpaces = BaseTicketTemplate.lineWidth - line.length - subtotalValue.length;
-        final spacer = totalSpaces > 0 ? ' ' * totalSpaces : ' ';
-
-        commands.add(TicketCommand.text("$line$spacer$subtotalValue"));
-        commands.add(TicketCommand.feedLine());
-      }
-    }
-
-    commands.add(TicketCommand.text(buildSeparator('-')));
-    commands.add(TicketCommand.feedLine());
 
     return commands;
   }

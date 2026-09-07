@@ -17,6 +17,7 @@ import 'package:punto_venta_app/features/pos/domain/entities/payment_method.dart
 import 'package:punto_venta_app/features/pos/domain/repositories/completed_orders_repository.dart';
 import 'package:punto_venta_app/features/pos/domain/repositories/payment_method_repository.dart';
 import 'package:punto_venta_app/features/pos/domain/repositories/tax_repository.dart';
+import 'package:punto_venta_app/features/pos/domain/usecases/manage_cart_usecase.dart';
 import 'package:punto_venta_app/features/pos/presentation/utils/ticket_template_resolver.dart';
 
 class CompletedOrdersRepositoryImpl implements CompletedOrdersRepository {
@@ -255,114 +256,11 @@ class CompletedOrdersRepositoryImpl implements CompletedOrdersRepository {
       hasClient: hasClient,
     );
 
-    // Convert log items to CartItems
-    final List<CartItem> items = ticket.logItems.map((itemJson) {
-      // Create a CartItemModel from the JSON
-      final productId = itemJson['productId'] as int;
-      final productName = itemJson['productName'] as String;
-      final quantity = itemJson['quantity'] as int;
-      final unitPriceNet = (itemJson['unitPrice'] as num).toDouble();
-      final isWeighted = itemJson['is_weighted'] == 'S';
-      final weightKg =
-          isWeighted ? (itemJson['weight'] as num?)?.toDouble() : null;
-      final netWeight =
-          isWeighted ? (itemJson['net_weight'] as num?)?.toDouble() : null;
-
-      // Extract tax percentage from taxes array
-      double taxPercentage = 0.0;
-      if (itemJson['taxes'] != null && (itemJson['taxes'] as List).isNotEmpty) {
-        final firstTax = (itemJson['taxes'] as List)[0];
-        taxPercentage = (firstTax['percentage'] as num?)?.toDouble() ?? 0.0;
-      }
-
-      // Precio Neto
-      final finalPrice = unitPriceNet;
-
-      // Create product using ProductModel and convert to entity
-      final productModel = ProductModel(
-        id: productId,
-        description: productName,
-        price: finalPrice,
-        vat: taxPercentage,
-        netWeight: netWeight,
-        stock: 0,
-        supplierId: 0,
-        internalTax: 0,
-        isWeighted: isWeighted ? 'S' : 'N',
-        categoryId: '',
-        suspendedForSale: 'N',
-        suspendedForPurchase: 'N',
-        isActive: 'S',
-        categoryDescription: '',
-        isOnSale: 0,
-      );
-
-      final cartItem = CartItem(
-        product: productModel.toEntity(),
-        quantity: quantity,
-        iva: taxPercentage,
-        isWeighted: isWeighted,
-        weightKg: weightKg,
-        pricePerKg: isWeighted ? finalPrice : null,
-      );
-
-      return cartItem;
-    }).toList();
-
-    // Convert log items to CartLogEntry
-    final List<CartLogEntry> logs = ticket.logItems.map((itemJson) {
-      final productId = itemJson['productId'] as int;
-      final productName = itemJson['productName'] as String;
-      final quantity = itemJson['quantity'] as int;
-      final unitPriceNet = (itemJson['unitPrice'] as num).toDouble();
-      final isWeighted = itemJson['is_weighted'] == 'S';
-      final weightKg =
-          isWeighted ? (itemJson['weight'] as num?)?.toDouble() : null;
-      final netWeight =
-          isWeighted ? (itemJson['net_weight'] as num?)?.toDouble() : null;
-      double taxPercentage = 0.0;
-      if (itemJson['taxes'] != null && (itemJson['taxes'] as List).isNotEmpty) {
-        final firstTax = (itemJson['taxes'] as List)[0];
-        taxPercentage = (firstTax['percentage'] as num?)?.toDouble() ?? 0.0;
-      }
-
-      // Precio neto
-      final finalPrice = unitPriceNet;
-
-      final productModel = ProductModel(
-        id: productId,
-        description: productName,
-        price: finalPrice,
-        vat: taxPercentage,
-        netWeight: netWeight,
-        stock: 0,
-        supplierId: 0,
-        internalTax: 0,
-        isWeighted: isWeighted ? 'S' : 'N',
-        categoryId: '',
-        suspendedForSale: 'N',
-        suspendedForPurchase: 'N',
-        isActive: 'S',
-        categoryDescription: '',
-        isOnSale: 0,
-      );
-
-      final cartItem = CartItem(
-        product: productModel.toEntity(),
-        quantity: quantity,
-        iva: taxPercentage,
-        isWeighted: isWeighted,
-        weightKg: weightKg,
-        pricePerKg: isWeighted ? finalPrice : null,
-      );
-
-      return CartLogEntry(
-        id: itemJson['id'] as String,
-        timestamp: DateTime.parse(ticket.timestamp),
-        item: cartItem,
-        type: CartActionType.add, // Default to add
-      );
-    }).toList();
+    final ticketTimestamp = DateTime.parse(ticket.timestamp);
+    final List<CartLogEntry> logs = ticket.logItems
+        .map((itemJson) => _cartLogEntryFromPayload(itemJson, ticketTimestamp))
+        .toList();
+    final List<CartItem> items = ManageCartUsecase().rebuildFromLog(logs);
     await taxRepository.getTaxes();
     var taxesFromBackend = await taxLocalDataSource.getCachedTaxes() ?? [];
     if (taxesFromBackend.isEmpty) {
@@ -583,5 +481,63 @@ class CompletedOrdersRepositoryImpl implements CompletedOrdersRepository {
         deleteAt: '',
       );
     }
+  }
+
+  CartLogEntry _cartLogEntryFromPayload(
+    Map<String, dynamic> itemJson,
+    DateTime timestamp,
+  ) {
+    final typeRaw = itemJson['type']?.toString().toLowerCase();
+    return CartLogEntry(
+      id: itemJson['id']?.toString() ?? '',
+      timestamp: timestamp,
+      item: _cartItemFromLogJson(itemJson),
+      type: typeRaw == 'remove' ? CartActionType.remove : CartActionType.add,
+    );
+  }
+
+  CartItem _cartItemFromLogJson(Map<String, dynamic> itemJson) {
+    final productId = (itemJson['productId'] as num).toInt();
+    final productName = itemJson['productName'] as String? ?? '';
+    final quantity = (itemJson['quantity'] as num?)?.toInt() ?? 0;
+    final unitPriceNet = (itemJson['unitPrice'] as num?)?.toDouble() ?? 0.0;
+    final isWeighted = itemJson['is_weighted'] == 'S';
+    final weightKg =
+        isWeighted ? (itemJson['weight'] as num?)?.toDouble() : null;
+    final netWeight =
+        isWeighted ? (itemJson['net_weight'] as num?)?.toDouble() : null;
+
+    double taxPercentage = 0.0;
+    if (itemJson['taxes'] != null && (itemJson['taxes'] as List).isNotEmpty) {
+      final firstTax = (itemJson['taxes'] as List)[0];
+      taxPercentage = (firstTax['percentage'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    final productModel = ProductModel(
+      id: productId,
+      description: productName,
+      price: unitPriceNet,
+      vat: taxPercentage,
+      netWeight: netWeight,
+      stock: 0,
+      supplierId: 0,
+      internalTax: 0,
+      isWeighted: isWeighted ? 'S' : 'N',
+      categoryId: '',
+      suspendedForSale: 'N',
+      suspendedForPurchase: 'N',
+      isActive: 'S',
+      categoryDescription: '',
+      isOnSale: 0,
+    );
+
+    return CartItem(
+      product: productModel.toEntity(),
+      quantity: quantity,
+      iva: taxPercentage,
+      isWeighted: isWeighted,
+      weightKg: weightKg,
+      pricePerKg: isWeighted ? unitPriceNet * (weightKg ?? 0.0) : null,
+    );
   }
 }
