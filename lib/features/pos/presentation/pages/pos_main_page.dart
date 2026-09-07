@@ -57,6 +57,8 @@ class _PosMainPageState extends State<PosMainPage> {
     }
 
     _fetchAppConfig();
+
+    context.read<ProductBloc>().add(const LoadProducts());
   }
 
   Future<void> _fetchAppConfig() async {
@@ -267,8 +269,7 @@ class _PosMainPageState extends State<PosMainPage> {
           cartBloc.getProductQuantityInCart(product.id.toString());
 
       if (quantityInCart >= quantity) {
-        cartBloc.add(
-            RemoveQuantityFromCart(product.id.toString(), quantity));
+        cartBloc.add(RemoveQuantityFromCart(product.id.toString(), quantity));
       } else if (quantityInCart > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -291,9 +292,7 @@ class _PosMainPageState extends State<PosMainPage> {
         );
       }
     } else if (product.price != null) {
-      context
-          .read<CartBloc>()
-          .add(AddToCart(product, quantity: quantity));
+      context.read<CartBloc>().add(AddToCart(product, quantity: quantity));
     }
 
     context.read<UiBloc>().add(ResetQuantity());
