@@ -48,6 +48,7 @@ class PaymentAdditionalDetailsWidget extends StatelessWidget {
         shortDesc.contains('qr') ||
         desc.contains('mercado') ||
         shortDesc.contains('mercado');
+    final isMercadoPagoDynamic = isQR;
     final isCheck = desc.contains('cheque') || shortDesc.contains('cheque');
 
     return Container(
@@ -111,14 +112,14 @@ class PaymentAdditionalDetailsWidget extends StatelessWidget {
                         icon: Icons.pin_outlined,
                         onChanged: onCheckNumberChanged,
                       ),
-                    if (isTransfer || isQR)
+                    if (isTransfer || (isQR && !isMercadoPagoDynamic))
                       PaymentMethodsDetailForm(
                         controller: controllers.transferId,
                         label: 'ID de Transferencia/Operación',
                         icon: Icons.receipt_long_outlined,
                         onChanged: onTransferIdChanged,
                       ),
-                    if (isCard || isQR)
+                    if (isCard || (isQR && !isMercadoPagoDynamic))
                       PaymentMethodsDetailForm(
                         controller: controllers.verificationId,
                         label: isCard
@@ -126,6 +127,14 @@ class PaymentAdditionalDetailsWidget extends StatelessWidget {
                             : 'ID de Verificación',
                         icon: Icons.verified_outlined,
                         onChanged: onVerificationIdChanged,
+                      ),
+                    if (isMercadoPagoDynamic)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Los datos de Mercado Pago se completan al confirmar el cobro con QR.',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                       ),
                   ];
 

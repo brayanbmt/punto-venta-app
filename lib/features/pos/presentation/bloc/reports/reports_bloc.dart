@@ -1,13 +1,13 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/completed_order.dart';
-import 'package:punto_venta_app/features/pos/domain/usecases/generate_credit_note_usecase.dart';
+import 'package:punto_venta_app/features/pos/domain/usecases/annul_ticket_usecase.dart';
 import 'package:punto_venta_app/features/pos/domain/usecases/get_reports_usecase.dart';
 import 'reports_event.dart';
 import 'reports_state.dart';
 
 class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
   final GetReportsUsecase getReportsUsecase;
-  final GenerateCreditNoteUsecase generateCreditNoteUsecase;
+  final AnnulTicketUsecase annulTicketUsecase;
 
   // Paginación
   int _currentPage = 1;
@@ -18,8 +18,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
   String? _currentTypeCode;
 
   ReportsBloc(
-      {required this.getReportsUsecase,
-      required this.generateCreditNoteUsecase})
+      {required this.getReportsUsecase, required this.annulTicketUsecase})
       : super(ReportsInitial()) {
     on<LoadAllReports>(_onLoadAllReports);
     on<LoadMoreReports>(_onLoadMoreReports);
@@ -190,7 +189,13 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     final currentState = state;
 
     try {
-      await generateCreditNoteUsecase(event.ticketId, event.reasonId);
+      await annulTicketUsecase(
+        ticketId: event.ticketId,
+        reasonId: event.reasonId,
+        refundToMercadoPagoAccount: event.refundToMercadoPagoAccount,
+        refundInCash: event.refundInCash,
+        qrOrderId: event.mpOrderId,
+      );
 
       emit(CreditNoteGenerated(
         ticketId: event.ticketId,
@@ -212,6 +217,19 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
           hasMoreData: currentState.hasMoreData,
           isLoadingMore: currentState.isLoadingMore,
         ));
+      }
+    } on MpRefundFailedException catch (e) {
+      emit(MpRefundFailed(
+        ticketId: event.ticketId,
+        message: e.message,
+        reasonId: event.reasonId,
+        mpOrderId: event.mpOrderId,
+        attempt: event.mpRefundAttempt,
+        canRetry: event.mpRefundAttempt < 1,
+      ));
+
+      if (currentState is ReportsLoaded) {
+        emit(currentState);
       }
     } catch (e) {
       String message = e.toString();
