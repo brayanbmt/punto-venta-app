@@ -4,6 +4,7 @@ import 'package:punto_venta_app/core/constants/app_colors.dart';
 import 'package:punto_venta_app/core/constants/app_dimensions.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/payment_method.dart';
 import 'package:punto_venta_app/features/pos/domain/repositories/mercado_pago_repository.dart';
+import 'package:punto_venta_app/features/pos/domain/repositories/pvs_repository.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/cart/cart_bloc.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/cart/cart_state.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/checkout/checkout_bloc.dart';
@@ -14,6 +15,7 @@ import 'package:punto_venta_app/features/pos/presentation/bloc/clients/clients_b
 import 'package:punto_venta_app/features/pos/presentation/bloc/mercado_pago_qr/mercado_pago_qr_state.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/payment_methods/payment_methods_bloc.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/payment_methods/payment_methods_state.dart';
+import 'package:punto_venta_app/features/pos/presentation/bloc/pvs_qr/pvs_qr_state.dart';
 import 'package:punto_venta_app/features/pos/presentation/utils/mercado_pago_qr_utils.dart';
 import 'package:punto_venta_app/features/pos/presentation/widgets/cart/confirmation/return_confirmation/return_confirmation_view.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/ui/ui_bloc.dart';
@@ -21,6 +23,8 @@ import 'package:punto_venta_app/features/pos/presentation/bloc/ui/ui_event.dart'
 import 'package:punto_venta_app/features/pos/presentation/bloc/ui/ui_state.dart';
 import 'package:punto_venta_app/features/pos/presentation/widgets/cart/confirmation/checkout_confirmation/checkout_confirmation_view.dart';
 import 'package:punto_venta_app/features/pos/presentation/widgets/mercado_pago/mercado_pago_qr_panel_view.dart';
+import 'package:punto_venta_app/features/pos/presentation/widgets/pvs/pvs_qr_panel_view.dart';
+import 'package:punto_venta_app/features/auth/data/datasources/auth_local_datasources.dart';
 import 'package:punto_venta_app/injection_container.dart' as di;
 
 class ConfirmationPanel extends StatefulWidget {
@@ -38,10 +42,22 @@ class ConfirmationPanel extends StatefulWidget {
 class _ConfirmationPanelState extends State<ConfirmationPanel> {
   /// Cuando no es null, el panel muestra el paso de cobro QR en lugar del form.
   _MpQrStep? _mpQrStep;
+  _PvsQrStep? _pvsQrStep;
 
   void _setMpQrStep(_MpQrStep? step) {
-    setState(() => _mpQrStep = step);
-    context.read<UiBloc>().add(SetMpQrActive(step != null));
+    setState(() {
+      _mpQrStep = step;
+      if (step != null) _pvsQrStep = null;
+    });
+    context.read<UiBloc>().add(SetMpQrActive(step != null || _pvsQrStep != null));
+  }
+
+  void _setPvsQrStep(_PvsQrStep? step) {
+    setState(() {
+      _pvsQrStep = step;
+      if (step != null) _mpQrStep = null;
+    });
+    context.read<UiBloc>().add(SetMpQrActive(step != null || _mpQrStep != null));
   }
 
   @override
@@ -70,6 +86,8 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
           final isReturnMode =
               uiState is UiLoaded ? uiState.isReturnMode : false;
           final showingMpQr = _mpQrStep != null;
+          final showingPvsQr = _pvsQrStep != null;
+          final showingQr = showingMpQr || showingPvsQr;
 
           return BlocBuilder<CheckoutConfirmationCubit,
               CheckoutConfirmationState>(
@@ -85,7 +103,7 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
                       _buildHeader(
                         context,
                         isReturnMode: isReturnMode,
-                        showingMpQr: showingMpQr,
+                        showingMpQr: showingQr,
                         isProcessing: isProcessing,
                         confirmationState: confirmationState,
                       ),
@@ -101,7 +119,20 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
                                   onCancelled: _exitMpQrStep,
                                 ),
                               )
-                            : SingleChildScrollView(
+                            : showingPvsQr
+                                ? Padding(
+                                    padding: const EdgeInsets.all(
+                                        AppDimensions.paddingM),
+                                    child: PvsQrPanelView(
+                                      amount: _pvsQrStep!.amount,
+                                      paymentMethodId:
+                                          _pvsQrStep!.paymentMethodId,
+                                      onApproved: (result) =>
+                                          _onPvsQrApproved(context, result),
+                                      onCancelled: _exitPvsQrStep,
+                                    ),
+                                  )
+                                : SingleChildScrollView(
                                 padding: const EdgeInsets.all(
                                     AppDimensions.paddingL),
                                 child: Column(
@@ -175,7 +206,7 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
                                 ),
                               ),
                       ),
-                      if (!showingMpQr)
+                      if (!showingQr)
                         _buildFooter(
                           context,
                           isReturnMode: isReturnMode,
@@ -219,6 +250,7 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
                 : () {
                     if (showingMpQr) {
                       _exitMpQrStep();
+                      _exitPvsQrStep();
                     } else {
                       _handleClose();
                     }
@@ -401,10 +433,13 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
     final payments = confirmationCubit.state.selectedPayments;
 
     PaymentMethod? mpPayment;
+    PaymentMethod? pvsPayment;
     for (final pm in payments) {
-      if (isMercadoPagoQrMethod(pm)) {
+      if (mpPayment == null && isMercadoPagoQrMethod(pm)) {
         mpPayment = pm;
-        break;
+      }
+      if (pvsPayment == null && isPvsQrMethod(pm)) {
+        pvsPayment = pm;
       }
     }
 
@@ -442,6 +477,60 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
       return;
     }
 
+    if (pvsPayment != null) {
+      final amount = pvsPayment.amount ?? 0.0;
+      if (amount <= 0) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El monto del pago QR debe ser mayor a 0'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final enterprise =
+          await di.sl<AuthLocalDataSource>().getCachedEnterprise();
+      final enterpriseId = enterprise?.id;
+      if (enterpriseId == null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Empresa no configurada para cobro PVS'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final credentials = await di.sl<PvsRepository>().resolveCredentials(
+            enterpriseId: enterpriseId,
+            paymentMethodId: pvsPayment.id,
+          );
+      if (credentials == null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No hay credenciales PVS para este método de pago.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final pvsIndex = payments.indexWhere((pm) => pm.id == pvsPayment!.id);
+      if (!context.mounted) return;
+      _setPvsQrStep(_PvsQrStep(
+        amount: amount,
+        paymentIndex: pvsIndex,
+        paymentMethodId: pvsPayment.id,
+      ));
+      return;
+    }
+
     _processSale(context);
   }
 
@@ -462,8 +551,28 @@ class _ConfirmationPanelState extends State<ConfirmationPanel> {
     _processSale(context);
   }
 
+  void _onPvsQrApproved(BuildContext context, PvsPaymentResult result) {
+    final confirmationCubit = context.read<CheckoutConfirmationCubit>();
+    final step = _pvsQrStep;
+    if (step != null && step.paymentIndex >= 0) {
+      confirmationCubit.updatePaymentDetails(
+        step.paymentIndex,
+        PaymentMethodDetails(
+          transferId: result.paymentId,
+          orderId: result.orderId,
+        ),
+      );
+    }
+    _setPvsQrStep(null);
+    _processSale(context);
+  }
+
   void _exitMpQrStep() {
     _setMpQrStep(null);
+  }
+
+  void _exitPvsQrStep() {
+    _setPvsQrStep(null);
   }
 
   void _processSale(BuildContext context) {
@@ -497,5 +606,17 @@ class _MpQrStep {
   const _MpQrStep({
     required this.amount,
     required this.paymentIndex,
+  });
+}
+
+class _PvsQrStep {
+  final double amount;
+  final int paymentIndex;
+  final int paymentMethodId;
+
+  const _PvsQrStep({
+    required this.amount,
+    required this.paymentIndex,
+    required this.paymentMethodId,
   });
 }

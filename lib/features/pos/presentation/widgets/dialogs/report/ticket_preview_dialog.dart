@@ -563,8 +563,11 @@ class _TicketPreviewContentState extends State<_TicketPreviewContent> {
             GenerateCreditNote(
               state.ticketId,
               state.reasonId,
-              refundToMercadoPagoAccount: true,
+              refundToMercadoPagoAccount: !state.refundToPvsAccount,
+              refundToPvsAccount: state.refundToPvsAccount,
               mpOrderId: state.mpOrderId,
+              pvsPaymentMethodId: state.pvsPaymentMethodId,
+              enterpriseId: state.enterpriseId,
               mpRefundAttempt: state.attempt + 1,
             ),
           );
@@ -612,8 +615,11 @@ class _TicketPreviewContentState extends State<_TicketPreviewContent> {
       if (selectedReasonId == null || !context.mounted) return;
 
       bool refundToAccount = false;
+      bool refundToPvsAccount = false;
       bool refundInCash = false;
       String? mpOrderId;
+      int? pvsPaymentMethodId;
+      int? enterpriseId;
       final payments = widget.ticket.paymentMethods ??
           (widget.ticket.paymentMethod != null
               ? [widget.ticket.paymentMethod!]
@@ -636,6 +642,34 @@ class _TicketPreviewContentState extends State<_TicketPreviewContent> {
           );
           return;
         }
+      } else if (ticketHasPvsQr(payments)) {
+        final pvsPm = findPvsPaymentMethod(payments) ??
+            widget.ticket.paymentMethod;
+        mpOrderId = extractPvsOrderIdFromTicketPayments(payments) ??
+            extractQrOrderId(pvsPm);
+        pvsPaymentMethodId = pvsPm?.id;
+        final enterprise =
+            await di.sl<AuthLocalDataSource>().getCachedEnterprise();
+        enterpriseId = enterprise?.id;
+        if (!context.mounted) return;
+        final mode = await showMpRefundModeDialog(
+          context,
+          providerLabel: 'PVS',
+        );
+        if (mode == null || !context.mounted) return;
+        refundToPvsAccount = mode == MpRefundMode.account;
+        refundInCash = mode == MpRefundMode.cash;
+        if (refundToPvsAccount && (mpOrderId == null || mpOrderId.isEmpty)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No se encontró order_id de PVS en el ticket',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
       }
 
       setState(() => _isGeneratingCreditNote = true);
@@ -644,8 +678,11 @@ class _TicketPreviewContentState extends State<_TicketPreviewContent> {
               widget.ticket.id,
               selectedReasonId,
               refundToMercadoPagoAccount: refundToAccount,
+              refundToPvsAccount: refundToPvsAccount,
               refundInCash: refundInCash,
               mpOrderId: mpOrderId,
+              pvsPaymentMethodId: pvsPaymentMethodId,
+              enterpriseId: enterpriseId,
             ),
           );
     } catch (e) {

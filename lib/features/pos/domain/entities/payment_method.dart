@@ -1,3 +1,5 @@
+import 'package:punto_venta_app/core/utils/enums.dart';
+
 class PaymentMethodDetails {
   final String? accountOwner;
   final String? bankId;
@@ -62,6 +64,7 @@ class PaymentMethod {
   final double? amount;
   final double? receivedAmount;
   final PaymentMethodDetails? details;
+  final QrType? qrType;
 
   const PaymentMethod({
     required this.id,
@@ -71,6 +74,7 @@ class PaymentMethod {
     this.amount,
     this.receivedAmount,
     this.details,
+    this.qrType,
   });
 
   PaymentMethod copyWith({
@@ -82,6 +86,7 @@ class PaymentMethod {
     double? receivedAmount,
     bool clearReceivedAmount = false,
     PaymentMethodDetails? details,
+    QrType? qrType,
   }) {
     return PaymentMethod(
       id: id ?? this.id,
@@ -89,10 +94,10 @@ class PaymentMethod {
       shortDescription: shortDescription ?? this.shortDescription,
       deleteAt: deleteAt ?? this.deleteAt,
       amount: amount ?? this.amount,
-      receivedAmount: clearReceivedAmount ? null : (receivedAmount ?? this.receivedAmount),
+      receivedAmount:
+          clearReceivedAmount ? null : (receivedAmount ?? this.receivedAmount),
       details: details ?? this.details,
+      qrType: qrType ?? this.qrType,
     );
   }
 }
-
-

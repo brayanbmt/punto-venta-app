@@ -31,6 +31,7 @@ import 'package:punto_venta_app/features/pos/domain/entities/product.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/cash_register/cash_register_cubit.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/cash_register/cash_register_state.dart';
 import 'package:punto_venta_app/features/pos/presentation/widgets/cash_register/closed_register_view.dart';
+import 'package:punto_venta_app/features/pos/presentation/utils/pvs_bootstrap.dart';
 import 'package:punto_venta_app/injection_container.dart' as di;
 
 class PosMainPage extends StatefulWidget {
@@ -57,6 +58,7 @@ class _PosMainPageState extends State<PosMainPage> {
     }
 
     _fetchAppConfig();
+    bootstrapPvsCredentials();
 
     context.read<ProductBloc>().add(const LoadProducts());
   }

@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:punto_venta_app/core/utils/enums.dart';
 import 'package:punto_venta_app/features/pos/domain/entities/payment_method.dart';
 
 part 'payment_method_model.freezed.dart';
@@ -13,6 +14,8 @@ class PaymentMethodModel with _$PaymentMethodModel {
     @JsonKey(name: 'description') String? description,
     @JsonKey(name: 'short_description') String? shortDescription,
     @JsonKey(name: 'deleted_at') String? deletedAt,
+    @JsonKey(name: 'qr_type', fromJson: qrTypeFromJson, toJson: qrTypeToJson)
+    QrType? qrType,
   }) = _PaymentMethodModel;
 
   factory PaymentMethodModel.fromJson(Map<String, dynamic> json) =>
@@ -24,6 +27,7 @@ class PaymentMethodModel with _$PaymentMethodModel {
       description: pm.description,
       shortDescription: pm.shortDescription,
       deletedAt: pm.deleteAt,
+      qrType: pm.qrType,
     );
   }
 
@@ -33,6 +37,7 @@ class PaymentMethodModel with _$PaymentMethodModel {
       description: description ?? "",
       shortDescription: shortDescription ?? "",
       deleteAt: deletedAt ?? "",
+      qrType: qrType,
     );
   }
 }

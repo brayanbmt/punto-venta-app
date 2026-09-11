@@ -45,10 +45,13 @@ class GenerateCreditNote extends ReportsEvent {
   final String ticketId;
   final int reasonId;
   final bool refundToMercadoPagoAccount;
-  /// Anulación de ticket MP con reembolso en efectivo (asocia in_cash).
+  final bool refundToPvsAccount;
+  /// Anulación de ticket QR con reembolso en efectivo (asocia in_cash).
   final bool refundInCash;
   final String? mpOrderId;
-  /// Intentos de refund a cuenta MP (0 = primero). Tras 1 fallo se puede
+  final int? pvsPaymentMethodId;
+  final int? enterpriseId;
+  /// Intentos de refund a cuenta (0 = primero). Tras 1 fallo se puede
   /// reintentar una vez; al segundo fallo solo queda efectivo.
   final int mpRefundAttempt;
 
@@ -56,8 +59,11 @@ class GenerateCreditNote extends ReportsEvent {
     this.ticketId,
     this.reasonId, {
     this.refundToMercadoPagoAccount = false,
+    this.refundToPvsAccount = false,
     this.refundInCash = false,
     this.mpOrderId,
+    this.pvsPaymentMethodId,
+    this.enterpriseId,
     this.mpRefundAttempt = 0,
   });
 
@@ -66,8 +72,11 @@ class GenerateCreditNote extends ReportsEvent {
         ticketId,
         reasonId,
         refundToMercadoPagoAccount,
+        refundToPvsAccount,
         refundInCash,
         mpOrderId,
+        pvsPaymentMethodId,
+        enterpriseId,
         mpRefundAttempt,
       ];
 }

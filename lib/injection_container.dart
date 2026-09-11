@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:punto_venta_app/core/database/database_helper.dart';
 import 'package:punto_venta_app/core/network/dio_client.dart';
 import 'package:punto_venta_app/core/services/mercado_pago_service.dart';
+import 'package:punto_venta_app/core/services/pvs_service.dart';
 import 'package:punto_venta_app/features/auth/data/datasources/auth_local_datasources.dart';
 import 'package:punto_venta_app/features/auth/data/datasources/google_auth_datasource.dart';
 import 'package:punto_venta_app/features/auth/data/datasources/firestore_user_datasource.dart';
@@ -17,10 +18,14 @@ import 'package:punto_venta_app/features/pos/data/datasources/client_remote_data
 import 'package:punto_venta_app/features/pos/data/datasources/mercado_pago_local_datasource.dart';
 import 'package:punto_venta_app/features/pos/data/datasources/mercado_pago_remote_datasource.dart';
 import 'package:punto_venta_app/features/pos/data/repositories/mercado_pago_repository_impl.dart';
+import 'package:punto_venta_app/features/pos/data/repositories/pvs_repository_impl.dart';
 import 'package:punto_venta_app/features/pos/domain/repositories/mercado_pago_repository.dart';
+import 'package:punto_venta_app/features/pos/domain/repositories/pvs_repository.dart';
 import 'package:punto_venta_app/features/pos/domain/usecases/annul_ticket_usecase.dart';
 import 'package:punto_venta_app/features/pos/domain/usecases/bootstrap_mercado_pago_credentials_usecase.dart';
+import 'package:punto_venta_app/features/pos/domain/usecases/bootstrap_pvs_credentials_usecase.dart';
 import 'package:punto_venta_app/features/pos/presentation/bloc/mercado_pago_qr/mercado_pago_qr_bloc.dart';
+import 'package:punto_venta_app/features/pos/presentation/bloc/pvs_qr/pvs_qr_bloc.dart';
 import 'package:punto_venta_app/features/pos/data/datasources/price_list_types_local_datasource.dart';
 import 'package:punto_venta_app/features/pos/data/datasources/price_list_types_remote_datasource.dart';
 import 'package:punto_venta_app/features/pos/data/datasources/tax_local_datasource.dart';
@@ -193,6 +198,7 @@ Future<void> init() async {
       userApiDataSource: sl(),
       priceListLocalDataSource: sl(),
       mercadoPagoLocalDataSource: sl(),
+      pvsRepository: sl(),
     ),
   );
 
@@ -220,6 +226,13 @@ Future<void> init() async {
     () => MercadoPagoRepositoryImpl(
       remoteDataSource: sl(),
       localDataSource: sl(),
+    ),
+  );
+  sl.registerLazySingleton(() => PvsService());
+  sl.registerLazySingleton<PvsRepository>(
+    () => PvsRepositoryImpl(
+      mercadoPagoRemoteDataSource: sl(),
+      pvsService: sl(),
     ),
   );
   sl.registerLazySingleton<UserApiService>(
@@ -365,6 +378,7 @@ Future<void> init() async {
         generateCreditNoteUsecase: sl(),
         mercadoPagoService: sl(),
         mercadoPagoRepository: sl(),
+        pvsRepository: sl(),
         returnsRepository: sl(),
       ));
   sl.registerLazySingleton(() => ProcessPartialReturnUseCase(
@@ -372,9 +386,15 @@ Future<void> init() async {
         completedOrdersRepository: sl(),
       ));
   sl.registerLazySingleton(() => BootstrapMercadoPagoCredentialsUsecase(sl()));
+  sl.registerLazySingleton(() => BootstrapPvsCredentialsUsecase(sl()));
   sl.registerFactory(() => MercadoPagoQrBloc(
         mercadoPagoService: sl(),
         mercadoPagoRepository: sl(),
+        authLocalDataSource: sl(),
+        pdvConfigRepository: sl(),
+      ));
+  sl.registerFactory(() => PvsQrBloc(
+        pvsRepository: sl(),
         authLocalDataSource: sl(),
         pdvConfigRepository: sl(),
       ));

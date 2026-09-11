@@ -6,6 +6,7 @@ import 'package:punto_venta_app/features/auth/data/datasources/firestore_user_da
 import 'package:punto_venta_app/features/auth/data/datasources/user_api_datasource.dart';
 import 'package:punto_venta_app/features/pos/data/datasources/mercado_pago_local_datasource.dart';
 import 'package:punto_venta_app/features/pos/data/datasources/price_list_local_datasource.dart';
+import 'package:punto_venta_app/features/pos/domain/repositories/pvs_repository.dart';
 import 'package:punto_venta_app/features/auth/data/models/enterprise_model.dart';
 import 'package:punto_venta_app/features/auth/data/models/user_model.dart';
 import 'package:punto_venta_app/features/auth/domain/entities/user.dart';
@@ -18,6 +19,7 @@ class AuthRepositoryImpl implements AuthRepository {
   final UserApiDataSource userApiDataSource;
   final PriceListLocalDataSource priceListLocalDataSource;
   final MercadoPagoLocalDataSource mercadoPagoLocalDataSource;
+  final PvsRepository pvsRepository;
 
   AuthRepositoryImpl({
     required this.localDataSource,
@@ -26,6 +28,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required this.userApiDataSource,
     required this.priceListLocalDataSource,
     required this.mercadoPagoLocalDataSource,
+    required this.pvsRepository,
   });
 
   @override
@@ -171,6 +174,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await localDataSource.clearEmail();
     await priceListLocalDataSource.clearPriceList();
     await mercadoPagoLocalDataSource.clear();
+    await pvsRepository.clearCachedCredentials();
     ApiConfig.resetCompanyId();
   }
 
@@ -178,6 +182,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> changeCashier() async {
     await localDataSource.logout();
     await mercadoPagoLocalDataSource.clear();
+    await pvsRepository.clearCachedCredentials();
   }
 
   @override

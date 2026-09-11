@@ -193,8 +193,11 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
         ticketId: event.ticketId,
         reasonId: event.reasonId,
         refundToMercadoPagoAccount: event.refundToMercadoPagoAccount,
+        refundToPvsAccount: event.refundToPvsAccount,
         refundInCash: event.refundInCash,
         qrOrderId: event.mpOrderId,
+        pvsPaymentMethodId: event.pvsPaymentMethodId,
+        enterpriseId: event.enterpriseId,
       );
 
       emit(CreditNoteGenerated(
@@ -224,6 +227,9 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
         message: e.message,
         reasonId: event.reasonId,
         mpOrderId: event.mpOrderId,
+        refundToPvsAccount: event.refundToPvsAccount,
+        pvsPaymentMethodId: event.pvsPaymentMethodId,
+        enterpriseId: event.enterpriseId,
         attempt: event.mpRefundAttempt,
         canRetry: event.mpRefundAttempt < 1,
       ));

@@ -3,14 +3,17 @@ import 'package:punto_venta_app/core/constants/app_colors.dart';
 
 enum MpRefundMode { account, cash }
 
-Future<MpRefundMode?> showMpRefundModeDialog(BuildContext context) {
+Future<MpRefundMode?> showMpRefundModeDialog(
+  BuildContext context, {
+  String providerLabel = 'Mercado Pago',
+}) {
   return showDialog<MpRefundMode>(
     context: context,
     builder: (ctx) {
       return AlertDialog(
-        title: const Text('Reembolso Mercado Pago'),
-        content: const Text(
-          'Este ticket tiene un cobro con QR de Mercado Pago.\n\n'
+        title: Text('Reembolso $providerLabel'),
+        content: Text(
+          'Este ticket tiene un cobro con QR de $providerLabel.\n\n'
           '¿Cómo querés reintegrar el dinero?',
         ),
         actions: [
@@ -24,7 +27,7 @@ Future<MpRefundMode?> showMpRefundModeDialog(BuildContext context) {
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             ),
-            child: const Text('A la cuenta (MP)'),
+            child: Text('A la cuenta ($providerLabel)'),
           ),
         ],
       );
